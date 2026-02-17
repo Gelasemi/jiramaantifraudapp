@@ -22,4 +22,9 @@ Vérifiez la présence de la ligne : [Horodatage] | agent_tana | GENERATION_MISS
 MQTT SSL : Le certificat est-il installé sur le broker ?
 Secrets : Les mots de passe sont-ils dans secrets.toml (et non en clair dans le code) ?
 Requirements : Le fichier requirements.txt inclut-il paho-mqtt, plotly, pandas et streamlit ?
+
 Backup : La base de données des logs est-elle sauvegardée quotidiennement ?
+
+Rappel des identifiants (IDs)
+Admin : admin_jirama / admin123
+Agent : agent_tana / agent123
