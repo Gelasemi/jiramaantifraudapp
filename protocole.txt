@@ -1,0 +1,25 @@
+Protocole de Test Pilote à réaliser sur un transformateur physique à Antananarivo.
+🧪 Protocole de Test : Détection de Fraude (Transformateur TR-PILOTE-01)
+1. Configuration du Test
+Emplacement : Poste de quartier (ex: Isotry ou Ivandry).
+Équipement IoT : 1 pince ampèremétrique connectée (MQTT) au départ BT du transformateur + Données des compteurs clients relevées via le concentrateur.
+Durée du test : 24 heures.
+2. Scénario de Simulation de Fraude
+Étape	Action Technique	Résultat Attendu dans l'App
+A. Référence	Consommation réelle = Somme des factures (0% fraude).	Le Bot affiche : "✅ État Nominal".
+B. Injection de Fraude	Créer artificiellement un écart de 35% (simuler un branchement clandestin).	Alerte rouge immédiate + Message du Bot : "🚨 Vol massif suspecté".
+C. Surcharge	Augmenter la charge simulée au-delà de 100% de la capacité du transfo.	Alerte Orange + Recommandation : "⚠️ Basculer sur Batterie / Délestage".
+3. Validation de l'Ordre de Mission
+Connectez-vous avec le compte agent_tana.
+Vérifiez que le transformateur TR-PILOTE-01 apparaît en Priorité HAUTE.
+Cliquez sur "Générer Ordre de Mission".
+Vérifiez que le fichier CSV contient : l'ID, la localisation GPS, et le motif "Suspicion de Fraude".
+4. Vérification de la Cybersécurité (Audit)
+Connectez-vous avec le compte admin_jirama.
+Accédez à la section Journal d'Audit.
+Vérifiez la présence de la ligne : [Horodatage] | agent_tana | GENERATION_MISSION | TR-PILOTE-01.
+📋 Check-list finale avant Mise en Service (Go-Live)
+MQTT SSL : Le certificat est-il installé sur le broker ?
+Secrets : Les mots de passe sont-ils dans secrets.toml (et non en clair dans le code) ?
+Requirements : Le fichier requirements.txt inclut-il paho-mqtt, plotly, pandas et streamlit ?
+Backup : La base de données des logs est-elle sauvegardée quotidiennement ?
