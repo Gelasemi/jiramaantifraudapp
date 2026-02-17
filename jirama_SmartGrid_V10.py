@@ -3,16 +3,19 @@ import pandas as pd
 import plotly.express as px
 import hashlib
 import random
+import os
+import base64
+from gtts import gTTS
 from datetime import datetime
 
-# --- 1. SÉCURITÉ & AUTHENTIFICATION ---
+# --- 1. SÉCURITÉ ET AUTHENTIFICATION ---
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
-# Base de données utilisateurs (Admin: admin123 | Agent: agent123)
+# Comptes : admin_jirama / admin123 | agent_tana / agent123
 users = {
     "admin_jirama": {"pwd": make_hashes("admin123"), "role": "ADMIN"},
     "agent_tana": {"pwd": make_hashes("agent123"), "role": "AGENT"}
@@ -29,86 +32,112 @@ def add_audit(action, target):
         "Cible": target
     })
 
-# --- 2. INTERFACE DE CONNEXION ---
+# --- 2. FONCTION SYNTHÈSE VOCALE (TTS) ---
+def speak_text(text, lang_code):
+    try:
+        tts = gTTS(text=text, lang=lang_code)
+        filename = "temp_speech.mp3"
+        tts.save(filename)
+        with open(filename, "rb") as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            md = f'<audio controls autoplay="true"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+            st.markdown(md, unsafe_allow_html=True)
+        os.remove(filename)
+    except Exception as e:
+        st.error(f"Erreur audio : {e}")
+
+# --- 3. INTERFACE DE CONNEXION ---
 if not st.session_state.logged_in:
-    st.title("⚡ JIRAMA : Accès Sécurisé Smart Grid")
+    st.title("🔐 JIRAMA : Accès Sécurisé Smart Grid")
     with st.form("login"):
-        u = st.text_input("Matricule / Username")
+        u = st.text_input("Matricule / Identifiant")
         p = st.text_input("Mot de passe", type='password')
         if st.form_submit_button("Se connecter"):
             if u in users and check_hashes(p, users[u]["pwd"]):
                 st.session_state.update({'logged_in': True, 'role': users[u]["role"], 'user': u})
                 st.rerun()
-            else: st.error("Identifiants incorrects")
+            else: st.error("Identifiants invalides")
     st.stop()
 
-# --- 3. LOGIQUE MÉTIER & DONNÉES (SIMULATION IOT) ---
+# --- 4. LOGIQUE MÉTIER (DONNÉES ET IA) ---
 st.sidebar.title(f"👤 {st.session_state.user}")
-lang = st.sidebar.radio("Langue", ["FR", "EN"])
+lang = st.sidebar.radio("Langue de l'Assistant", ["FR", "EN"])
+lang_code = 'fr' if lang == "FR" else 'en'
 
 @st.cache_data
-def load_network_data():
+def load_data():
     regions = ["Analamanga", "Atsinanana", "Diana", "Boeny", "Sava"]
     data = []
-    for i in range(15):
+    for i in range(12):
         sortie = random.randint(1000, 2500)
-        facture = sortie * random.uniform(0.45, 0.98) # Vol si < 0.75
-        charge = random.randint(40, 115)
+        facture = sortie * random.uniform(0.40, 0.98) # Simulation vol
         perte_pct = round((1 - (facture / sortie)) * 100, 1)
+        charge = random.randint(40, 115)
         data.append({
-            "ID": f"TR-MDG-{100+i}", "Région": random.choice(regions),
+            "ID": f"TR-MDG-{200+i}", "Région": random.choice(regions),
             "Charge_%": charge, "Perte_Vol_%": perte_pct,
-            "Temp_C": random.randint(40, 95), "Priority": "HAUTE" if perte_pct > 25 or charge > 100 else "NORMAL"
+            "Priorité": "HAUTE" if perte_pct > 25 or charge > 100 else "NORMAL"
         })
     return pd.DataFrame(data)
 
-df = load_network_data()
-
-# --- 4. BOT DE RECOMMANDATION IA ---
-def get_bot_advice(row):
-    recos = []
-    if row['Perte_Vol_%'] > 25: recos.append("🚩 Fraude suspectée" if lang=="FR" else "🚩 Fraud suspected")
-    if row['Charge_%'] > 100: recos.append("⚠️ Surcharge (Délestage imminent)" if lang=="FR" else "⚠️ Overload (Shedding imminent)")
-    return " | ".join(recos) if recos else ("✅ Stable" if lang=="FR" else "✅ Clear")
-
-df['Bot_Advice'] = df.apply(get_bot_advice, axis=1)
+df = load_data()
 
 # --- 5. DASHBOARD PRINCIPAL ---
-st.title("📊 JIRAMA Smart Supervision")
+st.title("🎙️ JIRAMA AI : Supervision Vocale & Anti-Fraude")
 
-# KPI Globaux
-c1, c2, c3 = st.columns(3)
-c1.metric("Pertes Moyennes (Vols)", f"{df['Perte_Vol_%'].mean():.1f}%", delta="-2% vs mois dernier")
-c2.metric("Transfos Critiques", len(df[df['Priority'] == "HAUTE"]))
-c3.metric("Stockage Batteries (BESS)", "85%", help="Énergie solaire stockée disponible")
+# Sélection du transformateur pour Audit
+selected_id = st.selectbox("Sélectionner un transformateur pour rapport vocal", df['ID'])
+row = df[df['ID'] == selected_id].iloc[0]
 
-# --- 6. VUE AGENT : MISSIONS TERRAIN ---
-st.subheader("📋 Ordres de Mission Prioritaires")
-missions = df[df['Priority'] == "HAUTE"]
-st.dataframe(missions[['ID', 'Région', 'Perte_Vol_%', 'Bot_Advice']])
+# Diagnostic du Bot
+def get_diagnosis(r):
+    diag = []
+    if r['Perte_Vol_%'] > 25: diag.append("🚩 Fraude détectée" if lang=="FR" else "🚩 Fraud detected")
+    if r['Charge_%'] > 100: diag.append("⚠️ Surcharge critique" if lang=="FR" else "⚠️ Critical Overload")
+    return " | ".join(diag) if diag else ("✅ Stable" if lang=="FR" else "✅ Stable")
 
-if st.button("📥 Générer Rapport d'Intervention CSV"):
-    add_audit("EXPORT_MISSIONS", "Fichier_CSV")
-    csv = missions.to_csv(index=False).encode('utf-8')
-    st.download_button("Télécharger CSV", csv, "missions_jirama.csv", "text/csv")
+diagnosis = get_diagnosis(row)
 
-# --- 7. VUE ADMIN : ANALYSE STRATÉGIQUE & AUDIT ---
+# Génération du script vocal
+if lang == "FR":
+    script = f"Transformateur {row['ID']}. Région {row['Région']}. Charge {row['Charge_%']} pourcent. Vol suspecté {row['Perte_Vol_%']} pourcent. Diagnostic : {diagnosis}."
+else:
+    script = f"Transformer {row['ID']}. Region {row['Région']}. Load {row['Charge_%']} percent. Theft suspected {row['Perte_Vol_%']} percent. Diagnosis: {diagnosis}."
+
+col1, col2 = st.columns([2, 1])
+with col1:
+    st.info(f"**Analyse du Bot :** {diagnosis}")
+    st.write(f"**Détails :** {script}")
+with col2:
+    if st.button("🔊 LIRE LE RAPPORT"):
+        speak_text(script, lang_code)
+        add_audit("LECTURE_VOCALE", row['ID'])
+
+st.markdown("---")
+
+# --- 6. VUE PAR RÔLE ---
 if st.session_state.role == "ADMIN":
-    st.markdown("---")
-    st.subheader("🛡️ Console d'Administration & Audit")
-    
-    tab1, tab2 = st.tabs(["Analyse des Vols", "Journal d'Audit"])
+    st.subheader("🛡️ Console Administration (Accès réservé)")
+    tab1, tab2 = st.tabs(["Analyse Cartographique", "Journal d'Audit"])
     
     with tab1:
-        fig = px.scatter(df, x="Région", y="Perte_Vol_%", size="Charge_%", color="Bot_Advice", hover_name="ID")
+        fig = px.scatter(df, x="Région", y="Perte_Vol_%", size="Charge_%", color="Priorité", hover_name="ID")
         st.plotly_chart(fig, use_container_width=True)
-        
+    
     with tab2:
         if st.session_state.audit_log:
             st.table(pd.DataFrame(st.session_state.audit_log))
         else: st.write("Aucune activité enregistrée.")
 
-# Déconnexion
-if st.sidebar.button("Déconnexion / Logout"):
+else: # VUE AGENT
+    st.subheader("📋 Mes Missions Terrain")
+    missions = df[df['Priorité'] == "HAUTE"]
+    st.dataframe(missions)
+    if st.button("📥 Exporter Missions (CSV)"):
+        add_audit("EXPORT_CSV", "Liste_Missions")
+        st.download_button("Télécharger", missions.to_csv().encode('utf-8'), "missions.csv", "text/csv")
+
+if st.sidebar.button("Déconnexion"):
     st.session_state.logged_in = False
     st.rerun()
